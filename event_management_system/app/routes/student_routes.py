@@ -449,19 +449,38 @@ def download_certificate(certificate_id):
             (certificate_id, student_id)
         )
         
-        if not cert or not cert['certificate_file_path']:
-            flash('Certificate not found', 'danger')
+        if not cert:
+            flash('Certificate record not found', 'danger')
             return redirect(url_for('student.view_certificates'))
         
         # Update download count
         update(
-            "UPDATE certificates SET download_count = download_count + 1, last_download_date = NOW() WHERE certificate_id = %s",
+            "UPDATE certificates SET download_count = download_count + 1, last_download_date = CURRENT_TIMESTAMP WHERE certificate_id = %s",
             (certificate_id,)
         )
-        
-        return send_file(cert['certificate_file_path'],
-                        as_attachment=True,
-                        download_name=f"certificate_{cert['certificate_number']}.pdf")
+
+        # Check if we should serve from database BLOB or file path
+        if cert.get('certificate_pdf'):
+            import io
+            # Convert BYTEA/BLOB to BytesIO for Flask to send
+            pdf_data = cert['certificate_pdf']
+            # Handle potential memoryview objects from psycopg2
+            if isinstance(pdf_data, memoryview):
+                pdf_data = pdf_data.tobytes()
+                
+            return send_file(
+                io.BytesIO(pdf_data),
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f"certificate_{cert['certificate_number']}.pdf"
+            )
+        elif cert.get('certificate_file_path') and os.path.exists(cert['certificate_file_path']):
+            return send_file(cert['certificate_file_path'],
+                            as_attachment=True,
+                            download_name=f"certificate_{cert['certificate_number']}.pdf")
+        else:
+            flash('Certificate file not found on server or database', 'danger')
+            return redirect(url_for('student.view_certificates'))
     
     except Exception as e:
         print(f"Database error: {e}")
