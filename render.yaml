@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: event-management
+    env: python
+    region: singapore # Adjust if needed, but this is a common default
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: gunicorn index:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: MAKEFLAGS
+        value: "-j1"
