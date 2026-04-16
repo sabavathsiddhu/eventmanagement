@@ -511,12 +511,21 @@ def create_certificates():
             
             if filepath:
                 print(f"Successfully generated certificate at {filepath}")
-                # Save certificate record
+                
+                # NEW: Read the PDF binary data to save to database
+                pdf_binary = None
+                try:
+                    with open(filepath, 'rb') as f:
+                        pdf_binary = f.read()
+                except Exception as read_err:
+                    print(f"Failed to read PDF for database storage: {read_err}")
+                
+                # Save certificate record with binary data
                 insert("""
                     INSERT INTO certificates
-                    (student_id, event_id, registration_id, certificate_number, issue_date, certificate_file_path)
-                    VALUES (%s, %s, %s, %s, NOW(), %s)
-                """, (student_id, event_id, reg['registration_id'], cert_number, filepath))
+                    (student_id, event_id, registration_id, certificate_number, issue_date, certificate_file_path, certificate_pdf)
+                    VALUES (%s, %s, %s, %s, NOW(), %s, %s)
+                """, (student_id, event_id, reg['registration_id'], cert_number, filepath, pdf_binary))
                 
                 count += 1
             else:
