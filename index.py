@@ -8,3 +8,8 @@ from app_factory import create_app
 
 # Render needs an initialized app instance to serve as the WSGI application
 app = create_app('production')
+
+if __name__ == '__main__':
+    # Add this block to run the server locally
+    print("Starting server on http://127.0.0.1:5000")
+    app.run(debug=True, host='127.0.0.1', port=5000)

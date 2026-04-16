@@ -329,29 +329,17 @@ class FaceRecognitionManager:
                 best_distance = 1.0
                 
                 for stud in registered_students:
-                    known_enc = None
-                    
-                    # Try to get from student dict (from DB)
-                    if stud.get('face_encoding'):
-                        try:
-                            known_enc = pickle.loads(stud['face_encoding'])
-                        except: pass
-                    
-                    # Fallback to file search if not in dict
-                    if known_enc is None:
-                        enc_file = os.path.join(faces_dir, f"student_{stud['student_id']}.pkl")
-                        if os.path.exists(enc_file):
-                            with open(enc_file, 'rb') as f:
-                                data = pickle.load(f)
-                                known_enc = data['encoding']
-                    
-                    if known_enc is not None:
-                        matches = face_recognition.compare_faces([known_enc], attendance_encoding, tolerance=self.distance_threshold)
-                        if matches[0]:
-                            dist = face_recognition.face_distance([known_enc], attendance_encoding)[0]
-                            if dist < best_distance:
-                                best_distance = dist
-                                best_match = stud
+                    enc_file = os.path.join(faces_dir, f"student_{stud['student_id']}.pkl")
+                    if os.path.exists(enc_file):
+                        with open(enc_file, 'rb') as f:
+                            data = pickle.load(f)
+                            known_enc = data['encoding']
+                            matches = face_recognition.compare_faces([known_enc], attendance_encoding, tolerance=self.distance_threshold)
+                            if matches[0]:
+                                dist = face_recognition.face_distance([known_enc], attendance_encoding)[0]
+                                if dist < best_distance:
+                                    best_distance = dist
+                                    best_match = stud
                 return best_match, img_bytes
             else:
                 # Fallback: Haar Cascade + random match from the list for demo
