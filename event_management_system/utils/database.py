@@ -39,7 +39,8 @@ def get_db_connection():
                     password=current_app.config['POSTGRES_PASSWORD'],
                     database=current_app.config['POSTGRES_DB'],
                     port=current_app.config['POSTGRES_PORT'],
-                    cursor_factory=RealDictCursor
+                    cursor_factory=RealDictCursor,
+                    sslmode='require'
                 )
         except Exception as e:
             print(f"Error connecting to database: {e}")
