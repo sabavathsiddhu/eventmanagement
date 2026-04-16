@@ -82,9 +82,27 @@ def init_db(app):
     app.teardown_appcontext(close_db)
 
     if USE_SQLITE:
-        # Create tables on startup
+        # Create tables on startup for SQLite
         with app.app_context():
             _create_sqlite_tables()
+    else:
+        # Create tables on startup for PostgreSQL/Supabase
+        with app.app_context():
+            try:
+                base_dir = os.path.dirname(os.path.dirname(__file__))
+                schema_path = os.path.join(base_dir, 'database', 'schema_postgresql.sql')
+                if os.path.exists(schema_path):
+                    with open(schema_path, 'r') as f:
+                        schema_sql = f.read()
+                    
+                    with get_cursor() as cursor:
+                        # Split by semicolon to execute multiple statements if needed, 
+                        # or just execute the whole block if your driver supports it.
+                        # psycopg2 usually handles the whole block if it's multiple commands.
+                        cursor.execute(schema_sql)
+                    print("PostgreSQL database initialized/verified successfully!")
+            except Exception as e:
+                print(f"Warning: PostgreSQL initialization failed (might already exist): {e}")
 
 
 def _create_sqlite_tables():
