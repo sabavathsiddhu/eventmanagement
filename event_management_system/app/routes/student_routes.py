@@ -6,6 +6,7 @@ from utils.auth import login_required
 from utils.database import get_one, get_all, insert, update, delete
 from utils.validation import check_student_eligibility
 from datetime import datetime
+import os
 
 student_bp = Blueprint('student', __name__, url_prefix='/student')
 
