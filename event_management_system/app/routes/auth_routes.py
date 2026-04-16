@@ -137,69 +137,29 @@ def register_student():
             if existing:
                 flash('Email already registered', 'danger')
                 return render_template('auth/register_student.html')
-            
-            # Get face data
-            face_image_b64 = request.form.get('face_image')
-            
-            # Basic validation
-            if password != confirm_password:
-                flash('Passwords do not match', 'danger')
-                return render_template('auth/register_student.html')
-                
-            if not face_image_b64:
-                flash('Face capture is required for registration', 'danger')
-                return render_template('auth/register_student.html')
 
             try:
                 # Hash password
                 password_hash = hash_password(password)
-                
-                # 1. First, create a temporary unique ID for the student to save their face
-                import uuid
-                temp_student_id = f"temp_{uuid.uuid4().hex[:8]}"
-                
-                # 2. Process the face image to get encoding
-                from app.modules.face_recognition_module import get_face_manager
-                import pickle, os
-                fm = get_face_manager()
-                face_encoding, face_img_filename = fm.process_base64_face(temp_student_id, face_image_b64)
-                
-                if face_encoding is None:
-                    flash('Could not detect a face in the photo. Please try again with better lighting.', 'danger')
-                    return render_template('auth/register_student.html')
 
-                # Prepare binary data for database persistence
-                import base64
-                if ',' in face_image_b64:
-                    face_image_b64 = face_image_b64.split(',')[1]
-                face_image_binary = base64.b64decode(face_image_b64)
-                
-                # We also want to store the binary of the pickle for persistence
-                pickle_binary = pickle.dumps({'student_id': temp_student_id, 'encoding': face_encoding})
-
-                # 3. Insert student into database
+                # Insert student into database (no face data required)
                 query = """
-                    INSERT INTO students (name, email, password_hash, cgpa, attendance, 
-                                       enrollment_number, department, phone, face_encoding, face_image)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO students (name, email, password_hash, cgpa, attendance,
+                                       enrollment_number, department, phone)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                
-                params = (name, email, password_hash, float(cgpa), float(attendance), 
-                         enrollment_number, department, phone, pickle_binary, face_image_binary)
-                
-                student_id = insert(query, params)
-                
-                # Update the ID in the pickle for future consistency if needed
-                new_pickle = pickle.dumps({'student_id': student_id, 'encoding': face_encoding})
-                update("UPDATE students SET face_encoding = %s WHERE student_id = %s", (new_pickle, student_id))
+                params = (name, email, password_hash, float(cgpa), float(attendance),
+                         enrollment_number, department, phone)
+
+                insert(query, params)
 
                 flash('Registration successful! You can now log in.', 'success')
                 return redirect(url_for('auth.login'))
-            
+
             except Exception as e:
                 print(f"Database error: {e}")
                 flash(f'Registration Error: {str(e)}', 'danger')
-        
+
         except Exception as e:
             print(f"Database error: {e}")
             flash(f'Registration Error: {str(e)}', 'danger')
