@@ -160,6 +160,7 @@ def register_student():
                 
                 # 2. Process the face image to get encoding
                 from app.modules.face_recognition_module import get_face_manager
+                import pickle, os
                 fm = get_face_manager()
                 face_encoding, face_img_filename = fm.process_base64_face(temp_student_id, face_image_b64)
                 
@@ -167,31 +168,30 @@ def register_student():
                     flash('Could not detect a face in the photo. Please try again with better lighting.', 'danger')
                     return render_template('auth/register_student.html')
 
+                # Prepare binary data for database persistence
+                import base64
+                if ',' in face_image_b64:
+                    face_image_b64 = face_image_b64.split(',')[1]
+                face_image_binary = base64.b64decode(face_image_b64)
+                
+                # We also want to store the binary of the pickle for persistence
+                pickle_binary = pickle.dumps({'student_id': temp_student_id, 'encoding': face_encoding})
+
                 # 3. Insert student into database
                 query = """
                     INSERT INTO students (name, email, password_hash, cgpa, attendance, 
-                                       enrollment_number, department, phone, face_encoding)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                       enrollment_number, department, phone, face_encoding, face_image)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                # Store the filename or a reference to the pkl as facial encoding identifier
-                face_encoding_ref = f"student_{temp_student_id}.pkl"
                 
                 params = (name, email, password_hash, float(cgpa), float(attendance), 
-                         enrollment_number, department, phone, face_img_filename)
+                         enrollment_number, department, phone, pickle_binary, face_image_binary)
                 
                 student_id = insert(query, params)
                 
-                # 4. Rename face encoding file to match final student_id for consistency
-                try:
-                    import os
-                    old_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'stored_face_encodings', f"{temp_student_id}.pkl")
-                    new_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'stored_face_encodings', f"student_{student_id}.pkl")
-                    if os.path.exists(old_path):
-                        os.rename(old_path, new_path)
-                        # Update database with the proper filename
-                        update("UPDATE students SET face_encoding = %s WHERE student_id = %s", (f"student_{student_id}.pkl", student_id))
-                except Exception as e:
-                    print(f"Error renaming encoding file: {e}")
+                # Update the ID in the pickle for future consistency if needed
+                new_pickle = pickle.dumps({'student_id': student_id, 'encoding': face_encoding})
+                update("UPDATE students SET face_encoding = %s WHERE student_id = %s", (new_pickle, student_id))
 
                 flash('Registration successful! You can now log in.', 'success')
                 return redirect(url_for('auth.login'))

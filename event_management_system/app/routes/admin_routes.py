@@ -534,19 +534,12 @@ def face_recognition_attendance(event_id):
         
         best_match, img_bytes = fm.recognize_single_face(face_image_b64, students)
         if best_match:
-            # Save the captured face image
-            faces_upload_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'uploads', 'faces')
-            os.makedirs(faces_upload_dir, exist_ok=True)
-            img_name = f"admin_att_{event_id}_{best_match['student_id']}_{uuid.uuid4().hex[:8]}.jpg"
-            with open(os.path.join(faces_upload_dir, img_name), 'wb') as f:
-                f.write(img_bytes)
-                
             reg_id = best_match['registration_id']
             existing = get_one("SELECT attendance_id FROM attendance WHERE registration_id=%s", (reg_id,))
             if existing:
-                update("UPDATE attendance SET attendance_status='present', check_in_time=NOW(), face_recognition_used=True, attendance_face_image=%s WHERE registration_id=%s", (img_name, reg_id))
+                update("UPDATE attendance SET attendance_status='present', check_in_time=NOW(), face_recognition_used=True, attendance_face_image=%s WHERE registration_id=%s", (img_bytes, reg_id))
             else:
-                insert("INSERT INTO attendance (registration_id, event_id, student_id, attendance_status, check_in_time, face_recognition_used, attendance_face_image) VALUES (%s, %s, %s, 'present', NOW(), True, %s)", (reg_id, event_id, best_match['student_id'], img_name))
+                insert("INSERT INTO attendance (registration_id, event_id, student_id, attendance_status, check_in_time, face_recognition_used, attendance_face_image) VALUES (%s, %s, %s, 'present', NOW(), True, %s)", (reg_id, event_id, best_match['student_id'], img_bytes))
             
             return jsonify({'success': True, 'message': f"Matched: {best_match['name']}. Attendance marked Present."})
         else:

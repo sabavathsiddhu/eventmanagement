@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS students (
     semester INT,
     profile_image BYTEA,
     face_encoding BYTEA,
+    face_image BYTEA,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -142,6 +143,7 @@ CREATE TABLE IF NOT EXISTS attendance (
     check_in_time TIMESTAMP,
     check_out_time TIMESTAMP,
     face_recognition_used BOOLEAN DEFAULT FALSE,
+    attendance_face_image BYTEA,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(student_id, event_id)

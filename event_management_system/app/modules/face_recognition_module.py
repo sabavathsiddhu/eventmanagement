@@ -329,17 +329,32 @@ class FaceRecognitionManager:
                 best_distance = 1.0
                 
                 for stud in registered_students:
+                    # Check local filesystem first (warm cache)
                     enc_file = os.path.join(faces_dir, f"student_{stud['student_id']}.pkl")
+                    known_enc = None
+                    
                     if os.path.exists(enc_file):
-                        with open(enc_file, 'rb') as f:
-                            data = pickle.load(f)
+                        try:
+                            with open(enc_file, 'rb') as f:
+                                data = pickle.load(f)
+                                known_enc = data['encoding']
+                        except: pass
+                    
+                    # Fallback: Load from DB binary data if provided
+                    if known_enc is None and stud.get('face_encoding'):
+                        try:
+                            data = pickle.loads(stud['face_encoding'])
                             known_enc = data['encoding']
-                            matches = face_recognition.compare_faces([known_enc], attendance_encoding, tolerance=self.distance_threshold)
-                            if matches[0]:
-                                dist = face_recognition.face_distance([known_enc], attendance_encoding)[0]
-                                if dist < best_distance:
-                                    best_distance = dist
-                                    best_match = stud
+                            print(f"DEBUG: Loaded encoding from DB for student {stud['student_id']}")
+                        except: pass
+                    
+                    if known_enc is not None:
+                        matches = face_recognition.compare_faces([known_enc], attendance_encoding, tolerance=self.distance_threshold)
+                        if matches[0]:
+                            dist = face_recognition.face_distance([known_enc], attendance_encoding)[0]
+                            if dist < best_distance:
+                                best_distance = dist
+                                best_match = stud
                 return best_match, img_bytes
             else:
                 # Fallback: Haar Cascade + random match from the list for demo

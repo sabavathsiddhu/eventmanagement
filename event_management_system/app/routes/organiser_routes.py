@@ -559,3 +559,94 @@ def profile():
         print(f"Database error: {e}")
         flash('An error occurred', 'danger')
         return redirect(url_for('organiser.dashboard'))
+@organiser_bp.route('/attendance/<int:event_id>')
+@login_required('organiser')
+def mark_attendance(event_id):
+    """Mark attendance for event (Organiser)"""
+    organiser_id = session.get('organiser_id')
+    try:
+        event = get_one("SELECT * FROM events WHERE event_id = %s AND organiser_id = %s", (event_id, organiser_id))
+        if not event:
+            flash('Event not found or not assigned to you', 'danger')
+            return redirect(url_for('organiser.dashboard'))
+        
+        # Get registered students
+        students = get_all("""
+            SELECT r.registration_id, s.student_id, s.name, s.email, s.enrollment_number,
+                   COALESCE(a.attendance_status, 'absent') as attendance_status,
+                   s.face_encoding
+            FROM registrations r
+            JOIN students s ON r.student_id = s.student_id
+            LEFT JOIN attendance a ON r.registration_id = a.registration_id
+            WHERE r.event_id = %s
+            ORDER BY s.name
+        """, (event_id,))
+        
+        return render_template('organiser/mark_attendance.html', event=event, students=students)
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('organiser.dashboard'))
+
+@organiser_bp.route('/attendance/save', methods=['POST'])
+@login_required('organiser')
+def save_attendance():
+    """Save attendance records (Organiser)"""
+    try:
+        data = request.get_json()
+        event_id = data.get('event_id')
+        attendance_records = data.get('attendance', [])
+        
+        for record in attendance_records:
+            reg_id = record.get('registration_id')
+            status = record.get('status')
+            
+            existing = get_one("SELECT attendance_id FROM attendance WHERE registration_id = %s", (reg_id,))
+            if existing:
+                update("UPDATE attendance SET attendance_status = %s, check_in_time = NOW() WHERE registration_id = %s", (status, reg_id))
+            else:
+                insert("""
+                    INSERT INTO attendance (registration_id, event_id, student_id, attendance_status, check_in_time)
+                    SELECT r.registration_id, r.event_id, r.student_id, %s, NOW()
+                    FROM registrations r WHERE r.registration_id = %s
+                """, (status, reg_id))
+        
+        return jsonify({'success': True, 'message': 'Attendance saved'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@organiser_bp.route('/face-recognition/<int:event_id>', methods=['POST'])
+@login_required('organiser')
+def face_recognition_attendance(event_id):
+    """Mark attendance using face recognition (Organiser)"""
+    try:
+        data = request.get_json(silent=True) or {}
+        face_image_b64 = data.get('face_image')
+        if not face_image_b64:
+            return jsonify({'success': False, 'message': 'Face image required'}), 400
+            
+        from app.modules.face_recognition_module import get_face_manager
+        import base64
+        fm = get_face_manager()
+        
+        students = get_all("""
+            SELECT r.registration_id, s.student_id, s.name, s.face_encoding 
+            FROM registrations r
+            JOIN students s ON r.student_id = s.student_id
+            WHERE r.event_id = %s
+        """, (event_id,))
+        
+        best_match, img_bytes = fm.recognize_single_face(face_image_b64, students)
+        if best_match:
+            reg_id = best_match['registration_id']
+            existing = get_one("SELECT attendance_id FROM attendance WHERE registration_id=%s", (reg_id,))
+            if existing:
+                update("UPDATE attendance SET attendance_status='present', check_in_time=NOW(), face_recognition_used=True, attendance_face_image=%s WHERE registration_id=%s", (img_bytes, reg_id))
+            else:
+                insert("INSERT INTO attendance (registration_id, event_id, student_id, attendance_status, check_in_time, face_recognition_used, attendance_face_image) VALUES (%s, %s, %s, 'present', NOW(), True, %s)", (reg_id, event_id, best_match['student_id'], img_bytes))
+            
+            return jsonify({'success': True, 'message': f"Matched: {best_match['name']}. Attendance marked Present."})
+        else:
+            return jsonify({'success': False, 'message': 'Match not found.'})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
