@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Certificates - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_events') }}">Events</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.view_event', event_id=event.event_id) }}">{{ event.event_name }}</a></li>
+            <li class="breadcrumb-item active">Generate Certificates</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h1 class="display-6"><i class="fas fa-certificate text-warning"></i> Generate Certificates (Admin)</h1>
+            <p class="text-muted">Event: <strong>{{ event.event_name }}</strong> | Date: {{ event.event_date }}</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Eligible Students ({{ eligible_students|length }})</h5>
+                    <div class="badge bg-warning text-dark">Required: Attendance Status 'Present'</div>
+                </div>
+                <div class="card-body">
+                    {% if eligible_students %}
+                        <div class="mb-4 p-3 bg-light rounded border">
+                            <h6 class="mb-3">Bulk Actions</h6>
+                            <button onclick="selectAllStudents()" class="btn btn-outline-success me-2 border-2">
+                                <i class="fas fa-check-double"></i> Select All
+                            </button>
+                            <button onclick="deselectAllStudents()" class="btn btn-outline-secondary me-2 border-2">
+                                <i class="fas fa-undo"></i> Deselect All
+                            </button>
+                            <button onclick="generateCertificates({{ event.event_id }})" class="btn btn-primary shadow-sm px-4">
+                                <i class="fas fa-magic"></i> Generate Selected
+                            </button>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle" id="studentsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="40">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                                            </div>
+                                        </th>
+                                        <th>Student Details</th>
+                                        <th>Enrollment No.</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for student in eligible_students %}
+                                        <tr>
+                                            <td>
+                                                <div class="form-check">
+                                                    <input class="form-check-input student-checkbox" type="checkbox" value="{{ student.student_id }}">
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="fw-bold">{{ student.name }}</div>
+                                                <div class="small text-muted">{{ student.email }}</div>
+                                            </td>
+                                            <td><code>{{ student.enrollment_number or 'N/A' }}</code></td>
+                                            <td><span class="badge bg-success-subtle text-success border border-success">Present</span></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-user-slash fa-4x text-muted mb-3"></i>
+                            <h4>No Students Eligible</h4>
+                            <p class="text-muted">No students have had their attendance marked as 'Present' for this event yet, or all eligible students already have certificates.</p>
+                            <a href="{{ url_for('admin.view_event', event_id=event.event_id) }}" class="btn btn-primary mt-2">Back to Participant List</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleSelectAll() {
+    const isChecked = document.getElementById('selectAll').checked;
+    document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = isChecked);
+}
+
+function selectAllStudents() {
+    document.getElementById('selectAll').checked = true;
+    toggleSelectAll();
+}
+
+function deselectAllStudents() {
+    document.getElementById('selectAll').checked = false;
+    toggleSelectAll();
+}
+
+function generateCertificates(eventId) {
+    const selected = Array.from(document.querySelectorAll('.student-checkbox:checked')).map(cb => parseInt(cb.value));
+
+    if (selected.length === 0) {
+        alert('Please select at least one student to generate certificates.');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to generate certificates for ${selected.length} students?\n\nThis process will save the PDF data permanently to the database.`)) {
+        return;
+    }
+
+    // Show loading state
+    const btn = event.target;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Generating...';
+
+    fetch("{{ url_for('admin.create_certificates') }}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, student_ids: selected })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('Success: ' + data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('An unexpected error occurred during generation.');
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+}
+</script>
+{% endblock %}

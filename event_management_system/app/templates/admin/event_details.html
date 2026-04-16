@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Event Details - Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('admin.manage_events') }}">Events</a></li>
+            <li class="breadcrumb-item active">{{ event.event_name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="display-6">{{ event.event_name }}</h1>
+            <p class="text-muted"><i class="fas fa-calendar"></i> {{ event.event_date }} | <i class="fas fa-map-marker-alt"></i> {{ event.location }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('admin.generate_certificates', event_id=event.event_id) }}" class="btn btn-warning shadow-sm">
+                <i class="fas fa-certificate"></i> Generate Certificates
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Event Info Card -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">Event Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Status:</strong> 
+                        <span class="badge {% if event.event_status == 'upcoming' %}bg-info{% elif event.event_status == 'completed' %}bg-secondary{% else %}bg-success{% endif %}">
+                            {{ event.event_status|capitalize }}
+                        </span>
+                    </p>
+                    <p><strong>Organiser:</strong> {{ event.organiser_name or 'Not Assigned' }}</p>
+                    <p><strong>Fee:</strong> {% if event.is_paid %}${{ event.event_fee }}{% else %}Free{% endif %}</p>
+                    <p><strong>Min CGPA:</strong> {{ event.min_cgpa }}</p>
+                    <p><strong>Min Attendance:</strong> {{ event.min_attendance }}%</p>
+                    <hr>
+                    <h6>Description</h6>
+                    <p class="text-muted small">{{ event.description }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Student List Card -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Participation List ({{ students|length }})</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Enrollment</th>
+                                <th>Attendance</th>
+                                <th>Certificate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in students %}
+                                <tr>
+                                    <td><strong>{{ student.name }}</strong><br><small class="text-muted">{{ student.email }}</small></td>
+                                    <td>{{ student.enrollment_number }}</td>
+                                    <td>
+                                        {% if student.attendance_status == 'present' %}
+                                            <span class="badge bg-success">Present</span>
+                                        {% elif student.attendance_status == 'absent' %}
+                                            <span class="badge bg-danger">Absent</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Not Marked</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if student.certificate_id %}
+                                            <span class="badge bg-success"><i class="fas fa-check"></i> Generated</span>
+                                        {% else %}
+                                            <span class="badge bg-info">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4">No students registered yet.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -355,3 +355,105 @@ def manage_organisers():
         print(f"Database error: {e}")
         flash('An error occurred', 'danger')
         return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/event/<int:event_id>')
+@login_required('admin')
+def view_event(event_id):
+    """View event details (Admin)"""
+    admin_id = session.get('admin_id')
+    try:
+        event = get_one("SELECT * FROM events WHERE event_id = %s", (event_id,))
+        if not event:
+            flash('Event not found', 'danger')
+            return redirect(url_for('admin.manage_events'))
+        
+        # Get registered students
+        students = get_all("""
+            SELECT r.*, s.student_id, s.name, s.email, s.enrollment_number,
+                   a.attendance_status, c.certificate_id
+            FROM registrations r
+            JOIN students s ON r.student_id = s.student_id
+            LEFT JOIN attendance a ON r.registration_id = a.registration_id
+            LEFT JOIN certificates c ON r.registration_id = c.registration_id
+            WHERE r.event_id = %s
+            ORDER BY s.name
+        """, (event_id,))
+        
+        return render_template('admin/event_details.html', event=event, students=students)
+    except Exception as e:
+        print(f"Database error: {e}")
+        flash(f'Error viewing event: {str(e)}', 'danger')
+        return redirect(url_for('admin.manage_events'))
+
+@admin_bp.route('/certificates/<int:event_id>')
+@login_required('admin')
+def generate_certificates(event_id):
+    """View certificate generation page for Admin"""
+    try:
+        event = get_one("SELECT * FROM events WHERE event_id = %s", (event_id,))
+        if not event:
+            flash('Event not found', 'danger')
+            return redirect(url_for('admin.manage_events'))
+        
+        eligible_students = get_all("""
+            SELECT r.registration_id, s.student_id, s.name, a.attendance_status
+            FROM registrations r
+            JOIN students s ON r.student_id = s.student_id
+            LEFT JOIN attendance a ON r.registration_id = a.registration_id
+            WHERE r.event_id = %s AND a.attendance_status = 'present'
+            AND NOT EXISTS (
+                SELECT 1 FROM certificates c WHERE c.registration_id = r.registration_id
+            )
+            ORDER BY s.name
+        """, (event_id,))
+        
+        return render_template('admin/generate_certificates.html', event=event, eligible_students=eligible_students)
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('admin.manage_events'))
+
+@admin_bp.route('/certificates/generate', methods=['POST'])
+@login_required('admin')
+def create_certificates():
+    """Create certificates for selected students (Admin)"""
+    try:
+        data = request.get_json()
+        event_id = data.get('event_id')
+        student_ids = data.get('student_ids', [])
+        
+        from app.modules.certificate_module import get_certificate_generator
+        import uuid
+        
+        event = get_one("SELECT event_id, event_name, event_date FROM events WHERE event_id = %s", (event_id,))
+        if not event:
+            return jsonify({'success': False, 'message': 'Event not found'}), 404
+        
+        cert_generator = get_certificate_generator()
+        count = 0
+        for student_id in student_ids:
+            student = get_one("SELECT name FROM students WHERE student_id = %s", (student_id,))
+            reg = get_one("SELECT registration_id FROM registrations WHERE student_id = %s AND event_id = %s", (student_id, event_id))
+            
+            if not student or not reg:
+                continue
+            
+            cert_number = f"CERT-{uuid.uuid4().hex[:8].upper()}"
+            filepath = cert_generator.generate_certificate(student['name'], event['event_name'], event['event_date'], cert_number)
+            
+            if filepath:
+                # Read binary for persistence
+                pdf_binary = None
+                try:
+                    with open(filepath, 'rb') as f:
+                        pdf_binary = f.read()
+                except: pass
+                
+                insert("""
+                    INSERT INTO certificates (student_id, event_id, registration_id, certificate_number, issue_date, certificate_file_path, certificate_pdf)
+                    VALUES (%s, %s, %s, %s, NOW(), %s, %s)
+                """, (student_id, event_id, reg['registration_id'], cert_number, filepath, pdf_binary))
+                count += 1
+        
+        return jsonify({'success': True, 'message': f'Generated {count} certificates'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

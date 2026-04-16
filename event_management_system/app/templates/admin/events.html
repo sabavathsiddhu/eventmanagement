@@ -51,6 +51,10 @@
                                     </td>
                                     <td>{{ event.organiser_name or 'Admin' }}</td>
                                     <td>
+                                        <a href="{{ url_for('admin.view_event', event_id=event.event_id) }}" 
+                                           class="btn btn-sm btn-info" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
                                         <a href="{{ url_for('admin.edit_event', event_id=event.event_id) }}" 
                                            class="btn btn-sm btn-warning" title="Edit">
                                             <i class="fas fa-edit"></i>
