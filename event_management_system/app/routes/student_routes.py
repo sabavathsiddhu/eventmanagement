@@ -64,7 +64,7 @@ def dashboard():
     
     except Exception as e:
         print(f"Database error: {e}")
-        flash('An error occurred', 'danger')
+        flash(f'Dashboard Error: {str(e)}', 'danger')
         return redirect(url_for('index'))
 
 
@@ -484,7 +484,7 @@ def download_certificate(certificate_id):
     
     except Exception as e:
         print(f"Database error: {e}")
-        flash('An error occurred', 'danger')
+        flash(f'Download Error: {str(e)}', 'danger')
         return redirect(url_for('student.view_certificates'))
 
 
